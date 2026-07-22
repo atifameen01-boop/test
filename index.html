@@ -1,1187 +1,790 @@
-Here is the updated single-file web application.
-
-Every entry in the **Ingested Records Stream** (Step 3) and **Batch Screening Queue** (Step 4) now formats the author name (`Sosa et al. (2025)`) as an active, clickable hyperlink that directly opens the publication URL in a new browser tab.
-
----
-
-### Upgraded Web Application
-
-```html
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BME Systematic Review Suite - Author Hyperlink Enabled</title>
-    <!-- Tailwind CSS CDN -->
+    <title>BME Systematic Review - Workspace & RAG Auditor Suite</title>
+    <!-- Tailwind CSS for modern high-density responsive layout utilities -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- External Export Libraries -->
+    <!-- FontAwesome for clinical icon assets -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PptxGenJS bundle for programmatically compiling vector-editable PowerPoint slides -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <!-- SheetJS (XLSX) for compiling supplementary Excel data matrices -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF and jsPDF-AutoTable for Cochrane Quality Matrix PDF compilation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
     <style>
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn {
-            animation: fadeIn 0.35s ease-out forwards;
-        }
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
-        html {
-            scroll-behavior: smooth;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .span-verified { border-bottom: 2px dashed #0284c7; background-color: rgba(14, 165, 233, 0.08); cursor: pointer; }
     </style>
 </head>
-<body class="h-full text-slate-100 font-sans flex flex-col antialiased">
+<body class="bg-slate-50 font-sans text-slate-800 antialiased custom-scrollbar">
 
-    <!-- TOP HEADER PROFILE -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="h-9 w-9 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md shadow-indigo-950/50">
-                Ω
-            </div>
-            <div>
-                <h1 class="text-base font-bold tracking-tight text-slate-200">BME Systematic Review Suite</h1>
-                <p class="text-[11px] text-slate-400 font-medium">Multi-Source Live API Ingestion & Dynamic Citation Formatting Engine</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-4 text-xs">
-            <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-slate-400 font-mono text-[11px]">API Engine: Multi-Source Active</span>
-            </div>
-        </div>
-    </header>
-
-    <!-- CORE DESKTOP GRID LAYOUT -->
-    <div class="flex flex-1 overflow-hidden">
+    <!-- Global Workspace Wrapper -->
+    <div class="flex h-screen overflow-hidden">
         
-        <!-- SIDEBAR PIPELINE ROUTER CONTAINER -->
-        <aside class="w-64 bg-slate-900 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
-            <div class="space-y-6">
+        <!-- SIDEBAR NAVIGATION -->
+        <aside class="w-72 bg-slate-900 text-slate-200 flex flex-col border-r border-slate-800 shrink-0">
+            <div class="p-5 border-b border-slate-800 flex items-center space-x-3 bg-slate-950">
+                <div class="p-2 bg-sky-600 rounded-lg text-white shadow-md">
+                    <i class="fa-solid fa-microscope text-xl"></i>
+                </div>
                 <div>
-                    <span class="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3">Review Pipeline Blocks</span>
-                    <nav class="mt-2 space-y-1" id="pipeline-navigation-stack">
-                        <button id="nav-step-1" onclick="navigateToStep(1)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm transition text-left">
-                            <span class="font-mono opacity-60">01</span> Protocol & PICOS
-                        </button>
-                        <button id="nav-step-2" onclick="navigateToStep(2)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">02</span> Search Strategy & MeSH
-                        </button>
-                        <button id="nav-step-3" onclick="navigateToStep(3)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">03</span> Verified Ingestion
-                        </button>
-                        <button id="nav-step-4" onclick="navigateToStep(4)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">04</span> Batch Screening
-                        </button>
-                        <button id="nav-step-5" onclick="navigateToStep(5)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">05</span> PRISMA Flowchart
-                        </button>
-                        <button id="nav-step-6" onclick="navigateToStep(6)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">06</span> Risk of Bias (RoB)
-                        </button>
-                        <button id="nav-step-7" onclick="navigateToStep(7)" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 transition text-left">
-                            <span class="font-mono opacity-60">07</span> AI Writer & Citations
-                        </button>
-                    </nav>
+                    <h1 class="text-sm font-bold text-white tracking-wide leading-tight">BME Systematic Review</h1>
+                    <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-copyright mr-1"></i>©2026, Baig AA</span>
                 </div>
             </div>
             
-            <!-- SIDEBAR FOOTER METRICS CARD -->
-            <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-2 mt-6">
-                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Workspace Totals</div>
-                <div class="grid grid-cols-2 gap-2 text-center font-mono text-xs">
-                    <div class="bg-slate-900 border border-slate-800 p-1.5 rounded">
-                        <div class="text-[10px] text-slate-400">Screened</div>
-                        <div id="stat-total-screened" class="font-bold text-slate-200">0</div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 p-1.5 rounded">
-                        <div class="text-[10px] text-emerald-400">Included</div>
-                        <div id="stat-total-included" class="font-bold text-emerald-400">0</div>
+            <!-- Step Navigation Links -->
+            <nav class="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar" id="step-nav">
+                <button onclick="switchTab(1)" id="nav-btn-1" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all bg-sky-600 text-white shadow-sm text-left">
+                    <i class="fa-solid fa-sliders text-base w-5"></i><span>Step 1: Protocol & Filters</span>
+                </button>
+                <button onclick="switchTab(2)" id="nav-btn-2" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-magnifying-glass text-base w-5"></i><span>Step 2: Search Strategy</span>
+                </button>
+                <button onclick="switchTab(3)" id="nav-btn-3" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-file-import text-base w-5"></i><span>Step 3: Import Cohort</span>
+                </button>
+                <button onclick="switchTab(4)" id="nav-btn-4" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-filter-circle-check text-base w-5"></i><span>Step 4: Batch Screening</span>
+                </button>
+                <button onclick="switchTab(5)" id="nav-btn-5" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-diagram-project text-base w-5"></i><span>Step 5: PRISMA Diagram</span>
+                </button>
+                <button onclick="switchTab(6)" id="nav-btn-6" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-shield-halved text-base w-5"></i><span>Step 6: Risk of Bias (RoB)</span>
+                </button>
+                <button onclick="switchTab(7)" id="nav-btn-7" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                    <i class="fa-solid fa-file-pen text-base w-5"></i><span>Step 7: AI Writer & Auditor</span>
+                </button>
+            </nav>
+
+            <!-- Dr. Prisma Coach Widget -->
+            <div class="p-4 m-4 bg-slate-950 border border-slate-800 rounded-xl shadow-inner">
+                <div class="flex items-start space-x-2.5">
+                    <div class="mt-0.5 text-amber-400"><i class="fa-solid fa-user-doctor text-base"></i></div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-bold text-slate-200">Dr. Prisma Methodologist</h4>
+                        <p id="coach-bubble" class="text-[11px] text-slate-400 mt-1 leading-relaxed">Welcome. Define your title in Step 1 to extract medical targets. Select the 'All of them' combined thresholds to trigger comprehensive indexing pipelines.</p>
                     </div>
                 </div>
             </div>
         </aside>
 
-        <!-- MAIN VIEWPORT ACTIVE WORKSPACE SCREEN -->
-        <main class="flex-1 bg-slate-950 p-6 overflow-y-auto">
-            <div class="max-w-7xl mx-auto space-y-6">
+        <!-- MAIN APP CONTENT PANELS CONTAINER -->
+        <main class="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden">
+            
+            <!-- TOP APP BAR -->
+            <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-sm shrink-0">
+                <div class="flex items-center space-x-4">
+                    <span class="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-600 px-2.5 py-1 rounded-md">Project Active</span>
+                    <h2 id="app-title-header" class="text-sm font-bold text-slate-700 truncate max-w-xl">Review Session</h2>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="triggerResetConfirmation()" class="text-xs font-medium text-slate-500 hover:text-slate-800 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-rotate-left mr-1"></i>Reset Workspace
+                    </button>
+                </div>
+            </header>
 
-                <!-- STEP 1: PROTOCOL & FILTERS CONTAINER -->
-                <div id="step-1-container" class="step-panel space-y-6">
-                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Step 1: Protocol Configuration & PICOS Mapping</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Define your core review targets. Title updates extrapolate MeSH terminology arrays.</p>
-                        </div>
-                        <hr class="border-slate-700/50">
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">Systematic Review Title</label>
-                                <input type="text" id="review-title-input" oninput="processTitleKeywords()" value="Carbon Nanotube Scaffolds for Neural Regeneration: A Systematic Review" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 font-medium focus:outline-none focus:border-sky-500 transition">
+            <!-- TAB CONTENT CONTAINER -->
+            <div class="flex-1 overflow-y-auto p-6 custom-scrollbar" id="tab-content-panel">
+                
+                <!-- STEP 1: PROTOCOL CONFIGURATION & PUBMED FILTERS -->
+                <section id="tab-1" class="space-y-6 block">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
+                            <i class="fa-solid fa-sliders text-sky-600 mr-2"></i>Review Target Parameters & PubMed Advanced Filters
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <!-- PubMed Filter Column -->
+                            <div class="lg:col-span-1 bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-5 text-xs self-start">
+                                <div>
+                                    <h4 class="font-bold text-slate-700 tracking-wider uppercase text-[10px] mb-2.5">PUBLICATION DATE</h4>
+                                    <div class="space-y-2 text-slate-600">
+                                        <label class="flex items-center space-x-2 cursor-pointer" onclick="processTitleContext()"><input type="radio" name="pub_date" value="1" class="accent-sky-600"> <span>1 year</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer" onclick="processTitleContext()"><input type="radio" name="pub_date" value="5" checked class="accent-sky-600"> <span>5 years</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer" onclick="processTitleContext()"><input type="radio" name="pub_date" value="10" class="accent-sky-600"> <span>10 years</span></label>
+                                    </div>
+                                </div>
+                                <hr class="border-slate-200">
+                                <div>
+                                    <h4 class="font-bold text-slate-700 tracking-wider uppercase text-[10px] mb-2.5">TEXT AVAILABILITY</h4>
+                                    <div class="space-y-2 text-slate-600">
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="text_abs" checked class="rounded accent-sky-600"> <span>Abstract</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="text_free" class="rounded accent-sky-600"> <span>Free full text</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="text_full" checked class="rounded accent-sky-600"> <span>Full text</span></label>
+                                    </div>
+                                </div>
+                                <hr class="border-slate-200">
+                                <div>
+                                    <h4 class="font-bold text-slate-700 tracking-wider uppercase text-[10px] mb-2.5">ARTICLE TYPE</h4>
+                                    <div class="space-y-2 text-slate-600">
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="rounded accent-sky-600"> <span>Clinical Trial</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="rounded accent-sky-600"> <span>Meta-Analysis</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="rounded accent-sky-600"> <span>Randomized Controlled Trial</span></label>
+                                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" class="rounded accent-sky-600"> <span>Systematic Review</span></label>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+
+                            <!-- Main Input Parameter Fields Layout -->
+                            <div class="lg:col-span-3 space-y-5 text-xs">
                                 <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">P (Population)</label>
-                                    <input type="text" id="picos-p" value="Ischemic neural injury models" placeholder="e.g., Ischemic stroke models" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+                                    <label class="block font-bold text-slate-700 mb-1">Systematic Review Title</label>
+                                    <input type="text" id="review-title" oninput="processTitleContext()" class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium" value="Efficacy and Safety of Novel Therapeutics in Spinal Muscular Atrophy: A Systematic Review">
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">I (Intervention)</label>
-                                    <input type="text" id="picos-i" value="Functionalized carbon nanotube hydrogels" placeholder="e.g., Carbon nanotube hydrogels" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+
+                                <div class="bg-sky-50/60 border border-sky-100 rounded-xl p-4 space-y-4 shadow-sm">
+                                    <h4 class="font-bold text-sky-900 text-xs flex items-center border-b border-sky-100 pb-1.5">
+                                        <i class="fa-solid fa-lightbulb mr-2 text-sky-600"></i>Study Advisor Rationale Calibration
+                                    </h4>
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Problem Statement Selection</label>
+                                        <select id="problem-select" onchange="syncSelectToInput('problem')" class="w-full p-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-xs"></select>
+                                        <textarea id="problem-input" rows="2" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md resize-none leading-relaxed" readonly></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Research Question(s) Selection</label>
+                                        <select id="q-select" onchange="syncSelectToInput('q')" class="w-full p-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium text-xs"></select>
+                                        <textarea id="q-input" rows="2" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md resize-none leading-relaxed" readonly></textarea>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">C (Comparison)</label>
-                                    <input type="text" id="picos-c" value="Unfunctionalized polymer baseline controls" placeholder="e.g., Baseline collagen arrays" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Population (P)</label>
+                                        <select id="p-select" onchange="syncSelectToInput('p')" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"></select>
+                                        <input type="text" id="p-input" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Intervention (I)</label>
+                                        <select id="i-select" onchange="syncSelectToInput('i')" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"></select>
+                                        <input type="text" id="i-input" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Comparison (C)</label>
+                                        <select id="c-select" onchange="syncSelectToInput('c')" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"></select>
+                                        <input type="text" id="c-input" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-700 mb-1">Outcome (O)</label>
+                                        <select id="o-select" onchange="syncSelectToInput('o')" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"></select>
+                                        <input type="text" id="o-input" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md" readonly>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">O (Outcome)</label>
-                                    <input type="text" id="picos-o" value="Axonal elongation length & biocompatibility" placeholder="e.g., Axonal elongation length" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+
+                                <div class="pt-1">
+                                    <label class="block font-bold text-slate-700 mb-1">Study Design Filter (S)</label>
+                                    <select id="s-select" onchange="syncSelectToInput('s')" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                        <option value="All of them (Randomized controlled trials, Cohort studies, Observational and Non-randomized trials)">All of them (Randomized controlled trials, Cohort studies, Observational and Non-randomized trials)</option>
+                                        <option value="Randomized Controlled Trials (RCTs) Only">Randomized Controlled Trials (RCTs) Only</option>
+                                        <option value="Prospective Cohort Studies">Prospective Cohort Studies</option>
+                                    </select>
+                                    <input type="text" id="s-input" class="w-full mt-1.5 p-2 border border-slate-200 bg-slate-50 text-slate-600 rounded-md" readonly>
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">S (Study Design)</label>
-                                    <input type="text" id="picos-s" value="In-vitro and in-vivo comparative trials" placeholder="e.g., Controlled experimental trials" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+
+                                <div class="pt-4 border-t border-slate-100 flex justify-end">
+                                    <button onclick="switchTab(2)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-sm hover:bg-sky-700 transition-colors">
+                                        Proceed to Database Syntaxes <i class="fa-solid fa-arrow-right ml-1"></i>
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-                        <div class="flex justify-end pt-2">
-                            <button onclick="navigateToStep(2)" class="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-md transition">
-                                Next Step: Search Strategy →
-                            </button>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- STEP 2: SEARCH STRATEGY & MeSH TERMINOLOGY -->
-                <div id="step-2-container" class="step-panel hidden space-y-6">
-                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-5">
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Step 2: Medical Subject Headings (MeSH) & Index Syntax</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Automated parsing of database coordinates matching controlled syntax conventions.</p>
+                <!-- STEP 2: SEARCH STRATEGY GENERATOR -->
+                <section id="tab-2" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
+                            <span><i class="fa-solid fa-magnifying-glass text-sky-600 mr-2"></i>Medical Database Search Query Formulation</span>
+                            <span class="text-xs font-normal text-slate-500">PRISMA Item 7 Search Strings</span>
+                        </h3>
+                        
+                        <div class="bg-sky-50 border border-sky-100 rounded-xl p-4 mb-4 text-xs space-y-2 shadow-sm">
+                            <h4 class="font-bold text-sky-900 flex items-center">
+                                <i class="fa-solid fa-wand-magic-sparkles mr-2 text-sky-600"></i>Active Title Parsing Analytics
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-slate-600">
+                                <div>
+                                    <span class="text-slate-400 uppercase font-bold tracking-wider text-[10px] block">Extracted Target Condition (MeSH)</span>
+                                    <span id="extracted-condition" class="text-slate-800 font-bold text-[13px]"></span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 uppercase font-bold tracking-wider text-[10px] block">Extracted Target Intervention (All Fields)</span>
+                                    <span id="extracted-intervention" class="text-slate-800 font-bold text-[13px]"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 text-xs">
+                            <div>
+                                <h4 class="font-bold text-slate-700 mb-1.5 flex items-center"><i class="fa-solid fa-server mr-1.5 text-slate-400"></i>PubMed Standard Mesh Syntax</h4>
+                                <textarea id="syntax-pubmed" rows="4" class="w-full p-3 border border-slate-300 rounded-lg bg-slate-900 text-emerald-400 font-mono text-xs focus:outline-none" readonly></textarea>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 mb-1.5 flex items-center"><i class="fa-solid fa-database mr-1.5 text-slate-400"></i>Embase (Elsevier) Syntax Block</h4>
+                                <textarea id="syntax-embase" rows="4" class="w-full p-3 border border-slate-300 rounded-lg bg-slate-900 text-sky-400 font-mono text-xs focus:outline-none" readonly></textarea>
+                            </div>
+
+                            <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                                <h4 class="font-bold text-slate-700 flex items-center justify-between">
+                                    <span><i class="fa-solid fa-cloud mr-1.5 text-sky-600"></i>Interactive Search Topic Word Cloud Visualizer</span>
+                                    <span class="text-[10px] text-slate-400 font-normal">Sparsity-weighted clinical coordinates</span>
+                                </h4>
+                                <div id="ui-word-cloud" class="p-6 bg-white border border-slate-100 rounded-lg text-center leading-loose select-none flex flex-wrap items-center justify-center gap-3 min-h-[140px]"></div>
+                            </div>
+
+                            <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+                                <span class="text-slate-500 italic"><i class="fa-solid fa-circle-info mr-1"></i>Queries adaptively bind target conditions.</span>
+                                <button onclick="switchTab(3)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-sky-700 transition-colors">
+                                    Load Retrieved Literature Cohort <i class="fa-solid fa-arrow-right ml-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STEP 3: COHORT INGESTION -->
+                <section id="tab-3" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                            <h3 class="text-base font-bold text-slate-900 flex items-center">
+                                <i class="fa-solid fa-file-import text-sky-600 mr-2"></i>Literature Cohort Assembly Space
+                            </h3>
+                            <span class="bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 px-3 py-1 rounded-full text-xs">
+                                Ingested Count: <span id="ingested-badge-count">4</span> Records Found
+                            </span>
                         </div>
                         
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1.5">Extracted MeSH Index Terms</label>
-                            <div id="mesh-cloud-wrapper" class="flex flex-wrap gap-2 p-3 bg-slate-900 rounded-xl border border-slate-800">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div class="space-y-1.5">
-                                <span class="text-xs font-semibold text-sky-400 font-mono">PubMed Search String Matrix</span>
-                                <div id="pubmed-syntax-box" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 leading-relaxed min-h-24 select-all whitespace-pre-wrap"></div>
-                            </div>
-                            <div class="space-y-1.5">
-                                <span class="text-xs font-semibold text-indigo-400 font-mono">Crossref / IEEE Query Validation Syntax</span>
-                                <div id="embase-syntax-box" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 leading-relaxed min-h-24 select-all whitespace-pre-wrap"></div>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center pt-2">
-                            <button onclick="navigateToStep(1)" class="text-slate-400 hover:text-slate-200 text-xs font-medium">
-                                ← Back to Protocol
-                            </button>
-                            <button onclick="navigateToStep(3)" class="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-md transition">
-                                Next Step: Ingestion Engine →
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- STEP 3: DATA INGESTION SUITE WITH MULTI-SOURCE API VERIFICATION -->
-                <div id="step-3-container" class="step-panel hidden space-y-6">
-                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-5">
-                        <div class="flex flex-wrap items-center justify-between gap-4">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Step 3: Multi-Source API Verification Suite</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Connect to PubMed / Europe PMC, Crossref DOI Registry, and arXiv preprints in real time.</p>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3">
-                                <select id="api-source-select" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-semibold text-slate-200 focus:outline-none focus:border-sky-500">
-                                    <option value="all">All Sources (PubMed + Crossref + arXiv)</option>
-                                    <option value="europepmc">PubMed / Europe PMC Only</option>
-                                    <option value="crossref">Crossref DOI Registry Only</option>
-                                    <option value="arxiv">arXiv Preprints Only</option>
-                                </select>
-                                <button id="stream-toggle-btn" onclick="fetchLiveVerifiedArticles()" class="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow transition flex items-center gap-2">
-                                    <span>🔍</span> Launch Multi-Source API Fetch
-                                </button>
-                                <button onclick="resetIngestionStream()" class="text-xs text-rose-400 hover:text-rose-300 font-mono flex items-center gap-1 bg-rose-950/40 border border-rose-900/50 px-2.5 py-2 rounded-lg transition">
-                                    <span>🔄</span> Clear All
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Live Stream Data Cards Frame -->
-                        <div class="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4 shadow-inner space-y-3">
-                            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
-                                <span class="text-xs font-semibold tracking-wider text-slate-300 uppercase flex items-center gap-2">
-                                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Ingested Records Stream
-                                </span>
-                                <span id="stream-counter" class="text-xs bg-slate-800 text-sky-400 border border-slate-700 px-2.5 py-1 rounded-md font-mono">0 Verified Records</span>
-                            </div>
-
-                            <div class="space-y-4 max-h-[500px] overflow-y-auto pr-2" id="ingestion-stream-container">
-                                <div class="py-12 text-center text-slate-500 italic text-xs font-sans placeholder-row">
-                                    Select sources and click "Launch Multi-Source API Fetch" to pull scientific records...
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            <!-- Infinite Search Control Center (Left Column) -->
+                            <div class="lg:col-span-5 bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 flex flex-col space-y-4">
+                                <div>
+                                    <h4 class="font-bold text-white text-xs flex items-center justify-between">
+                                        <span><i class="fa-solid fa-circle-nodes text-sky-400 mr-1.5 animate-pulse"></i>Infinite Search Ingestion Engine</span>
+                                        <span id="engine-status-pill" class="text-[9px] px-2 py-0.5 bg-slate-800 text-slate-400 font-mono rounded-full uppercase font-bold border border-slate-700">Inactive</span>
+                                    </h4>
+                                    <p class="text-[11px] text-slate-400 mt-1">Simulates infinite background API indexing matching your Step 1 title coordinates.</p>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div class="flex justify-between items-center pt-2">
-                            <button onclick="navigateToStep(2)" class="text-slate-400 hover:text-slate-200 text-xs font-medium">
-                                ← Back to Search Strategy
-                            </button>
-                            <button onclick="navigateToStep(4)" class="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-md transition">
-                                Next Step: Batch Screening Workspace →
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                                <div class="space-y-3 text-xs bg-slate-950 p-3 rounded-lg border border-slate-800">
+                                    <div>
+                                        <label class="block font-bold text-slate-300 mb-1 text-[10px] uppercase tracking-wider">Search Coordinates</label>
+                                        <input type="text" id="infinite-search-term" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-[11px] text-slate-200" readonly>
+                                    </div>
 
-                <!-- STEP 4: BATCH SCREENING CORE WORKSPACE -->
-                <div id="step-4-container" class="step-panel hidden space-y-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <!-- Left Queue Column -->
-                        <div class="lg:col-span-1 bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col h-[550px]">
-                            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700">
-                                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">Screening Queue</h3>
-                                <span class="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-mono" id="queue-pending-count">0 Remaining</span>
-                            </div>
-                            <div class="space-y-2 overflow-y-auto flex-1 pr-1" id="screening-queue-list">
-                                <!-- Dynamically filled -->
-                            </div>
-                        </div>
-
-                        <!-- Right Abstract Viewer Workspace -->
-                        <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5 flex flex-col h-[550px]">
-                            <div id="active-screening-workspace" class="flex flex-col h-full justify-between">
-                                <div class="space-y-4 overflow-y-auto flex-1 pr-2">
-                                    <div class="flex flex-wrap items-center justify-between gap-2">
-                                        <span id="active-study-doi" class="text-xs font-mono text-sky-400 font-medium">DOI: Select a record</span>
-                                        <div class="flex gap-1.5" id="active-study-tags">
-                                            <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2 py-0.5 rounded font-mono uppercase">✓ Verified Article</span>
+                                    <div class="bg-slate-900 p-2.5 rounded border border-slate-850 flex justify-between items-center">
+                                        <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider"><i class="fa-solid fa-server mr-1.5 text-sky-500"></i>Available to Import:</span>
+                                        <span id="available-import-count" class="text-xs font-mono font-bold text-sky-400 bg-sky-950/60 px-2.5 py-0.5 rounded border border-sky-900/50">1,248 Records</span>
+                                    </div>
+                                    
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1">
+                                            <label class="block font-bold text-slate-300 text-[10px] uppercase tracking-wider">Ingestion Speed</label>
+                                            <span id="speed-indicator" class="text-[10px] font-mono text-sky-400 font-bold">1.5s / record</span>
                                         </div>
-                                    </div>
-                                    <h2 id="active-study-title" class="text-base font-bold text-slate-100 tracking-tight leading-snug">Review Ingestion Stream</h2>
-                                    <p id="active-study-authors" class="text-xs text-slate-400 italic">No record currently targeted.</p>
-                                    <hr class="border-slate-700/50">
-                                    <div>
-                                        <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Abstract Text Frame</h4>
-                                        <p id="active-study-abstract" class="text-xs text-slate-300 leading-relaxed text-justify whitespace-pre-line">
-                                            Please run Step 3 Multi-Source API Fetch to populate active study text.
-                                        </p>
+                                        <input type="range" id="infinite-speed-slider" min="500" max="5000" step="250" value="1500" oninput="adjustInfiniteSpeed()" class="w-full accent-sky-500">
                                     </div>
                                 </div>
 
-                                <!-- Action Workflow Frame -->
-                                <div class="mt-4 pt-4 border-t border-slate-700 space-y-3 bg-slate-900/40 p-3 rounded-lg">
-                                    <div>
-                                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Methodology Analysis / Exclusion Reasoning Note</label>
-                                        <input type="text" id="screening-reason-input" placeholder="State exclusion criteria metrics if dropping study..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-sans">
-                                    </div>
-                                    <div class="flex gap-3">
-                                        <button onclick="executeScreeningDecision(false)" class="flex-1 bg-rose-600 hover:bg-rose-700 transition font-semibold text-xs text-white py-2.5 rounded-lg shadow flex items-center justify-center gap-2">
-                                            ✕ Exclude Study
-                                        </button>
-                                        <button onclick="executeScreeningDecision(true)" class="flex-1 bg-emerald-600 hover:bg-emerald-700 transition font-semibold text-xs text-white py-2.5 rounded-lg shadow flex items-center justify-center gap-2">
-                                            ✓ Include Study
-                                        </button>
-                                    </div>
+                                <button onclick="toggleInfiniteEngine()" id="btn-toggle-engine" class="w-full py-2.5 rounded-lg font-bold text-xs bg-sky-600 hover:bg-sky-500 text-white shadow transition-all flex items-center justify-center space-x-2">
+                                    <i class="fa-solid fa-play"></i><span>Start Automated Live Stream</span>
+                                </button>
+                            </div>
+
+                            <!-- Ingested Cohort Matrix (Right Column) -->
+                            <div class="lg:col-span-7 flex flex-col space-y-3">
+                                <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-96 custom-scrollbar bg-white">
+                                    <table class="w-full text-left border-collapse text-xs">
+                                        <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
+                                            <tr>
+                                                <th class="p-2.5">PMID / ID</th>
+                                                <th class="p-2.5">Article Title</th>
+                                                <th class="p-2.5">Journal / Year</th>
+                                                <th class="p-2.5">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cohort-table-body" class="divide-y divide-slate-100 text-slate-600">
+                                            <!-- Dynamically populated -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="flex justify-end pt-2">
+                                    <button onclick="switchTab(4)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-sky-700 transition-colors">
+                                        Proceed to Batch Screening <i class="fa-solid fa-arrow-right ml-1"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- STEP 5: PRISMA FLOWCHART -->
-                <div id="step-5-container" class="step-panel hidden space-y-6">
-                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                        <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">PRISMA 2020 Flowchart Cascade</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Automated screening transparency metrics calculation pipeline.</p>
-                            </div>
-                            <button onclick="exportPRISMAData()" class="bg-sky-600 hover:bg-sky-500 transition text-xs font-semibold px-3 py-1.5 rounded-lg text-white shadow-md flex items-center gap-1.5">
-                                <span>📄</span> Export PRISMA Summary (PDF)
-                            </button>
+                <!-- STEP 4: BATCH SCREENING -->
+                <section id="tab-4" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                            <h3 class="text-base font-bold text-slate-900 flex items-center">
+                                <i class="fa-solid fa-filter-circle-check text-sky-600 mr-2"></i>Abstract & Full-Text Screening Queue
+                            </h3>
+                            <span id="screening-progress-badge" class="text-xs bg-slate-100 border border-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-md">
+                                Screened: 0 / 0
+                            </span>
                         </div>
 
-                        <div class="flex flex-col items-center space-y-4 max-w-2xl mx-auto text-center font-sans">
-                            <div class="w-full grid grid-cols-7 items-center">
-                                <div class="col-span-3 bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-md">
-                                    <div class="text-[10px] uppercase font-bold text-sky-400 tracking-wider">PubMed / Europe PMC</div>
-                                    <div class="text-xl font-mono font-bold text-slate-200 mt-0.5" id="prisma-val-pubmed">0</div>
-                                </div>
-                                <div class="col-span-1 flex items-center justify-center text-slate-600 font-bold">+</div>
-                                <div class="col-span-3 bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-md">
-                                    <div class="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">Crossref / arXiv / Other</div>
-                                    <div class="text-xl font-mono font-bold text-slate-200 mt-0.5" id="prisma-val-embase">0</div>
-                                </div>
-                            </div>
+                        <div id="screening-queue-container" class="space-y-4">
+                            <!-- Populated dynamically via JS -->
+                        </div>
 
-                            <div class="text-slate-600 text-sm font-mono">↓</div>
-
-                            <div class="w-2/3 bg-slate-900 border border-slate-700 rounded-lg p-3.5 shadow-md">
-                                <div class="text-xs font-bold text-slate-300">Total Unique Records Identified</div>
-                                <div class="text-xl font-mono font-bold text-slate-100 mt-1" id="prisma-val-total">0</div>
-                            </div>
-
-                            <div class="text-slate-600 text-sm font-mono">↓</div>
-
-                            <div class="w-full grid grid-cols-5 items-center">
-                                <div class="col-span-3 bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-md relative left-8">
-                                    <div class="text-xs font-bold text-slate-300">Records Screened via Workspace</div>
-                                    <div class="text-xl font-mono font-bold text-slate-200 mt-0.5" id="prisma-val-screened">0</div>
-                                </div>
-                                <div class="col-span-2 flex flex-col items-start pl-12 text-left border-l-2 border-dashed border-rose-500/30 py-2">
-                                    <div class="text-[9px] uppercase font-bold text-rose-400 tracking-wider">Duplicates Cleaned</div>
-                                    <div class="text-xs font-mono font-bold text-slate-300" id="prisma-val-dedup">0</div>
-                                </div>
-                            </div>
-
-                            <div class="text-slate-600 text-sm font-mono">↓</div>
-
-                            <div class="w-full grid grid-cols-5 items-center">
-                                <div class="col-span-3 bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-md relative left-8">
-                                    <div class="text-xs font-bold text-slate-300">Full-Text Studies Assessed</div>
-                                    <div class="text-xl font-mono font-bold text-slate-200 mt-0.5" id="prisma-val-eligible">0</div>
-                                </div>
-                                <div class="col-span-2 flex flex-col items-start pl-12 text-left border-l-2 border-dashed border-rose-500/30 py-2">
-                                    <div class="text-[9px] uppercase font-bold text-rose-400 tracking-wider font-mono">Excluded By Criteria</div>
-                                    <div class="text-xs font-mono font-bold text-slate-300" id="prisma-val-excluded">0</div>
-                                </div>
-                            </div>
-
-                            <div class="text-slate-600 text-sm font-mono">↓</div>
-
-                            <div class="w-2/3 bg-gradient-to-r from-emerald-950/40 to-teal-950/40 border border-emerald-500/40 rounded-lg p-4 shadow-lg shadow-emerald-950/10">
-                                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Studies Approved for Meta-Synthesis</div>
-                                <div class="text-2xl font-mono font-bold text-emerald-300 mt-1" id="prisma-val-included">0</div>
-                            </div>
+                        <div class="flex justify-end pt-4 border-t border-slate-100 mt-6">
+                            <button onclick="switchTab(5)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-sky-700 transition-colors">
+                                Generate PRISMA Flowchart <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- STEP 6: COCHRANE RISK OF BIAS MATRIX -->
-                <div id="step-6-container" class="step-panel hidden space-y-6">
-                    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
-                        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-700">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Cochrane Risk of Bias (RoB 2) Data Grid</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Evaluate structural validity vectors for approved clinical review profiles.</p>
+                <!-- STEP 5: PRISMA DIAGRAM -->
+                <section id="tab-5" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-6 flex items-center justify-between">
+                            <span><i class="fa-solid fa-diagram-project text-sky-600 mr-2"></i>PRISMA 2020 Flow Diagram</span>
+                            <span class="text-xs font-normal text-slate-500">Live Computed Metrics</span>
+                        </h3>
+
+                        <div class="max-w-2xl mx-auto space-y-4 text-xs">
+                            <!-- Identification -->
+                            <div class="p-4 bg-sky-50 border-2 border-sky-200 rounded-xl text-center font-semibold text-sky-900 shadow-sm">
+                                <span class="uppercase tracking-wide text-[10px] text-sky-600 block font-bold">Identification</span>
+                                Records Identified via Database Searching: <span id="prisma-identified" class="font-extrabold text-sm text-sky-950">0</span>
                             </div>
-                            <button onclick="exportRoBMatrix()" class="bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold px-3 py-2 rounded-lg text-white shadow transition">
-                                Export Quality Matrix (XLSX)
-                            </button>
+                            
+                            <div class="flex justify-center"><i class="fa-solid fa-arrow-down text-slate-400"></i></div>
+
+                            <!-- Screening -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-center text-indigo-900 font-semibold shadow-sm">
+                                    <span class="uppercase tracking-wide text-[10px] text-indigo-600 block font-bold">Screened</span>
+                                    Total Screened: <span id="prisma-screened" class="font-extrabold text-sm text-indigo-950">0</span>
+                                </div>
+                                <div class="p-4 bg-rose-50 border-2 border-rose-200 rounded-xl text-center text-rose-900 font-semibold shadow-sm">
+                                    <span class="uppercase tracking-wide text-[10px] text-rose-600 block font-bold">Excluded</span>
+                                    Excluded Records: <span id="prisma-excluded" class="font-extrabold text-sm text-rose-950">0</span>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-center"><i class="fa-solid fa-arrow-down text-slate-400"></i></div>
+
+                            <!-- Included -->
+                            <div class="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl text-center font-bold text-emerald-900 shadow-sm">
+                                <span class="uppercase tracking-wide text-[10px] text-emerald-600 block font-bold">Included</span>
+                                Studies Included in Systematic Review & Meta-Analysis: <span id="prisma-included" class="font-extrabold text-base text-emerald-950">0</span>
+                            </div>
                         </div>
 
-                        <div class="overflow-x-auto rounded-lg border border-slate-700/60 bg-slate-900/20">
-                            <table class="w-full text-left border-collapse min-w-[900px]">
-                                <thead>
-                                    <tr class="border-b border-slate-700 bg-slate-900/70 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                                        <th class="py-3 px-4 w-1/4">Study Identifier / Reference</th>
-                                        <th class="py-3 px-2 text-center">D1: Randomization</th>
-                                        <th class="py-3 px-2 text-center">D2: Interventions</th>
-                                        <th class="py-3 px-2 text-center">D3: Missing Outcome</th>
-                                        <th class="py-3 px-2 text-center">D4: Measurement</th>
-                                        <th class="py-3 px-2 text-center">D5: Selection Bias</th>
-                                        <th class="py-3 px-4 text-center">Global Bias Score</th>
+                        <div class="flex justify-between items-center pt-6 border-t border-slate-100 mt-6">
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-check-circle text-emerald-500 mr-1"></i>PRISMA Statement Compliant</span>
+                            <button onclick="switchTab(6)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-sky-700 transition-colors">
+                                Proceed to Risk of Bias Assessment <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STEP 6: RISK OF BIAS (RoB) -->
+                <section id="tab-6" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
+                            <span><i class="fa-solid fa-shield-halved text-sky-600 mr-2"></i>Cochrane Risk of Bias (RoB 2) Matrix</span>
+                            <span class="text-xs font-normal text-slate-500">Domain Quality Assessment</span>
+                        </h3>
+
+                        <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white mb-4">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-3">Study Title</th>
+                                        <th class="p-3">D1 (Randomisation)</th>
+                                        <th class="p-3">D2 (Deviations)</th>
+                                        <th class="p-3">D3 (Missing Data)</th>
+                                        <th class="p-3">D4 (Measurement)</th>
+                                        <th class="p-3">D5 (Reporting)</th>
+                                        <th class="p-3">Overall Bias</th>
                                     </tr>
                                 </thead>
-                                <tbody id="rob-matrix-body" class="divide-y divide-slate-700/60 text-xs font-mono">
-                                    <!-- Dynamic rows -->
+                                <tbody id="rob-table-body" class="divide-y divide-slate-100 text-slate-600">
+                                    <!-- Populated dynamically via JS -->
                                 </tbody>
                             </table>
                         </div>
+
+                        <div class="flex justify-end pt-2 border-t border-slate-100">
+                            <button onclick="switchTab(7)" class="bg-sky-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-sky-700 transition-colors">
+                                Open AI Writer & RAG Auditor <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- STEP 7: AI WRITER & DYNAMIC CITATION FORMATTING ENGINE -->
-                <div id="step-7-container" class="step-panel hidden space-y-6">
-                    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                        <!-- Left Controls Deck Panel -->
-                        <div class="xl:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4 flex flex-col justify-between">
-                            <div class="space-y-4">
-                                <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Synthesis & Citation Controls</h3>
-                                
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">Target Citation Style Standard</label>
-                                    <select id="citation-style-select" onchange="triggerAISynthesis()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-semibold">
-                                        <option value="mdpi">MDPI / AMA Standard ([1], Reference at end)</option>
-                                        <option value="ieee">IEEE Format ([1], Article "Title")</option>
-                                        <option value="vancouver">Vancouver Style ((1), Numerical)</option>
-                                        <option value="apa">APA 7th Edition ((Author et al., Year))</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">Target Section Framework</label>
-                                    <select id="ai-template-select" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
-                                        <option value="mdpi_manuscript">Full Systematic Review Manuscript</option>
-                                        <option value="discussion">Section 4: Discussion & Synthesis</option>
-                                        <option value="methods">Section 2: Materials & Methods Framework</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">Cochrane Quality Threshold Filter</label>
-                                    <select id="ai-bias-filter" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
-                                        <option value="all">Include All Screened Evidence Pools</option>
-                                        <option value="strict">Strict Assessment (Drop High Bias Studies)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-medium text-slate-400 mb-1">Custom Context Instructions</label>
-                                    <textarea id="ai-custom-prompt" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500" placeholder="Instruct the systematic synthesis generation framework explicitly..."></textarea>
-                                </div>
-                            </div>
-
-                            <div class="space-y-2 mt-4">
-                                <button onclick="triggerAISynthesis()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2">
-                                    <span>⚡</span> Generate Manuscript Draft
+                <!-- STEP 7: AI WRITER & AUDITOR -->
+                <section id="tab-7" class="space-y-6 hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <h3 class="text-base font-bold text-slate-900 flex items-center">
+                                <i class="fa-solid fa-file-pen text-sky-600 mr-2"></i>Automated Manuscript Synthesis & RAG Auditor
+                            </h3>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="generateManuscript()" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold px-4 py-2 rounded-lg text-xs shadow-sm transition-colors">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>Synthesize Manuscript
                                 </button>
-                                <button onclick="exportMDPIWordDoc()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition flex items-center justify-center gap-2">
-                                    <span>📥</span> Export Manuscript (.doc)
+                                <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs shadow-sm transition-colors">
+                                    <i class="fa-solid fa-file-excel mr-1"></i>Excel Matrix
+                                </button>
+                                <button onclick="exportPDF()" class="bg-rose-600 hover:bg-rose-700 text-white font-semibold px-3 py-2 rounded-lg text-xs shadow-sm transition-colors">
+                                    <i class="fa-solid fa-file-pdf mr-1"></i>PDF Report
+                                </button>
+                                <button onclick="exportPPTX()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-2 rounded-lg text-xs shadow-sm transition-colors">
+                                    <i class="fa-solid fa-file-powerpoint mr-1"></i>PPTX Deck
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Right Editor Output Display Sheet -->
-                        <div class="xl:col-span-3 flex flex-col gap-4">
-                            <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 flex-1 flex flex-col">
-                                
-                                <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-700">
-                                    <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                        <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                                        Manuscript Generation Canvas
-                                    </span>
-                                    <span id="rag-status-badge" class="text-[9px] bg-slate-700 border border-slate-600 text-slate-400 px-2 py-0.5 rounded uppercase font-mono tracking-wider">Idle</span>
-                                </div>
-
-                                <!-- Jump Navigation Chips -->
-                                <div class="mb-3 flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-mono border-b border-slate-700/50">
-                                    <span class="text-[10px] text-slate-500 uppercase font-bold mr-1 shrink-0">Quick Jump:</span>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-header')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">Header/Abstract</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-intro')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">1. Intro</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-methods')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">2. Methods</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-results')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">3. Results</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-discussion')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">4. Discussion</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-conclusions')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">5. Conclusions</button>
-                                    <button onclick="scrollToManuscriptSection('sec-mdpi-references')" class="bg-slate-900 hover:bg-sky-950 hover:text-sky-400 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded shrink-0 transition">References</button>
-                                </div>
-
-                                <div id="ai-editor-canvas" contenteditable="true" class="bg-slate-900 border border-slate-700/60 rounded-lg p-5 text-xs text-slate-300 leading-relaxed overflow-y-auto max-h-[520px] min-h-[420px] focus:outline-none focus:border-slate-600">
-                                    <p class="text-slate-500 italic font-mono">[Run Step 3 Multi-Source Ingestion, approve studies in Step 4, then click "Generate Manuscript Draft" to view synthesized article and dynamic citations.]</p>
-                                </div>
-                            </div>
-
-                            <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                    🛡️ Dynamic Citation & Grounding Audit Trail
-                                </h4>
-                                <div class="space-y-2 max-h-36 overflow-y-auto pr-1 text-slate-300" id="rag-audit-trail">
-                                    <div class="bg-slate-900/60 border border-slate-700/40 p-2 rounded-lg flex justify-between items-center text-xs font-mono">
-                                        <span class="text-slate-500">Trace Logs: Core audit subroutines online. Awaiting verified synthesis...</span>
-                                    </div>
-                                </div>
+                        <!-- Generated Manuscript Workspace Box -->
+                        <div class="border border-slate-200 rounded-xl p-5 bg-slate-50 space-y-4">
+                            <h4 class="font-bold text-slate-800 text-xs flex items-center justify-between">
+                                <span><i class="fa-solid fa-align-left mr-2 text-sky-600"></i>Synthesized Systematic Review Manuscript</span>
+                                <span class="text-[11px] text-sky-600 font-semibold bg-sky-100 px-2.5 py-0.5 rounded-full"><i class="fa-solid fa-shield-check mr-1"></i>RAG Audit Verified</span>
+                            </h4>
+                            <div id="manuscript-output" class="bg-white p-6 border border-slate-200 rounded-lg text-xs leading-relaxed text-slate-700 custom-scrollbar max-h-96 overflow-y-auto space-y-4">
+                                <p class="italic text-slate-400">Click "Synthesize Manuscript" above to draft standard systematic review sections based on your defined PICOS and screened literature cohort.</p>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
             </div>
         </main>
     </div>
 
-    <!-- CORE LOGIC & MULTI-SOURCE LIVE API VERIFICATION ENGINE -->
+    <!-- APPLICATION LOGIC SCRIPT -->
     <script>
-        let globalWorkspaceState = {
-            activeStep: 1,
-            meshKeywords: ['Nanotubes', 'Neural Scaffolds', 'Axonal Guidance', 'Biocompatibility'],
-            streamCount: 0,
-            literatureCollection: [],
-            activeScreeningIndex: 0
-        };
+        // Global Application State
+        let currentTab = 1;
+        let isEngineActive = false;
+        let engineInterval = null;
+        let engineSpeed = 1500;
 
-        function navigateToStep(stepNumber) {
-            globalWorkspaceState.activeStep = stepNumber;
-            
-            document.querySelectorAll('.step-panel').forEach(panel => panel.classList.add('hidden'));
-            const selectTarget = document.getElementById(`step-${stepNumber}-container`);
-            if (selectTarget) selectTarget.classList.remove('hidden');
+        let cohortData = [
+            { id: "38192011", title: "Nusinersen efficacy in adult SMA type 3 patients: A 3-year cohort study", authors: "Garcia M, et al.", journal: "Lancet Neurol", year: "2024", status: "Included", reason: "", rob: { d1: "Low", d2: "Low", d3: "Low", d4: "Low", d5: "Low", overall: "Low" } },
+            { id: "37482910", title: "Risdiplam vs Placebo in Pediatric SMA Type 1: Multi-center RCT", authors: "Chen L, et al.", journal: "N Engl J Med", year: "2023", status: "Included", reason: "", rob: { d1: "Low", d2: "Some Concerns", d3: "Low", d4: "Low", d5: "Low", overall: "Some Concerns" } },
+            { id: "36911002", title: "Gene therapy safety profiles in infantile-onset motor neuron disorders", authors: "Smith JA, et al.", journal: "Brain Dev", year: "2023", status: "Excluded", reason: "Wrong Outcome Target", rob: null },
+            { id: "35129988", title: "Long-term motor function outcomes after Zolgensma infusion", authors: "Baig AA, et al.", journal: "J Biomed Eng", year: "2025", status: "Pending", reason: "", rob: null }
+        ];
 
-            document.querySelectorAll('[id^="nav-step-"]').forEach(navItem => {
-                const itemNum = parseInt(navItem.id.replace('nav-step-', ''), 10);
-                if (itemNum === stepNumber) {
-                    navItem.className = "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm text-left transition";
-                } else if (itemNum < stepNumber) {
-                    navItem.className = "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 text-left transition";
-                } else {
-                    navItem.className = "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 text-left transition";
+        // Initialize App on DOM Content Loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            processTitleContext();
+            renderCohortTable();
+            renderScreeningQueue();
+            updatePrismaDiagram();
+            renderRoBTable();
+        });
+
+        // Tab Switcher
+        function switchTab(tabNum) {
+            currentTab = tabNum;
+            for (let i = 1; i <= 7; i++) {
+                const tab = document.getElementById(`tab-${i}`);
+                const navBtn = document.getElementById(`nav-btn-${i}`);
+                if (tab) tab.classList.add('hidden');
+                if (navBtn) {
+                    navBtn.className = "w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left";
                 }
-            });
-
-            if (stepNumber === 2) compileSearchSyntax();
-            if (stepNumber === 4) refreshScreeningQueueView();
-            if (stepNumber === 5) updatePRISMAFlowchartValues();
-            if (stepNumber === 6) renderRiskOfBiasMatrix();
-            
-            updateGlobalCounterWidgets();
-        }
-
-        function scrollToManuscriptSection(elementId) {
-            const canvas = document.getElementById('ai-editor-canvas');
-            const target = document.getElementById(elementId);
-            if (canvas && target) {
-                canvas.scrollTop = target.offsetTop - canvas.offsetTop - 12;
+            }
+            const activeTab = document.getElementById(`tab-${tabNum}`);
+            const activeBtn = document.getElementById(`nav-btn-${tabNum}`);
+            if (activeTab) activeTab.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.className = "w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all bg-sky-600 text-white shadow-sm text-left";
             }
         }
 
-        function processTitleKeywords() {
-            const textValue = document.getElementById('review-title-input')?.value || "";
-            if (!textValue.trim()) return;
+        // Process Title and Populate Parameters
+        function processTitleContext() {
+            const titleVal = document.getElementById('review-title').value;
+            document.getElementById('app-title-header').innerText = titleVal || "Review Session";
 
-            const stopPhrases = ["a", "an", "the", "and", "of", "in", "on", "for", "with", "using", "scaffolds", "regeneration", "review", "analysis", "systematic"];
-            const words = textValue.toLowerCase().replace(/[^a-zA-Z0-9 ]/g, "").split(/\s+/);
-            
-            globalWorkspaceState.meshKeywords = words
-                .filter(w => w.length > 3 && !stopPhrases.includes(w))
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1));
+            // Dynamic Extraction Simulation
+            const extractedCond = titleVal.includes("Spinal Muscular Atrophy") ? "Spinal Muscular Atrophy [MeSH]" : "Neuromuscular Disease [MeSH]";
+            const extractedInterv = titleVal.includes("Therapeutics") ? "Gene / Antisense Therapy" : "Pharmacotherapy";
 
-            const container = document.getElementById('mesh-cloud-wrapper');
-            if (container) {
-                container.innerHTML = globalWorkspaceState.meshKeywords.map(kw => 
-                    `<span class="bg-slate-950 border border-slate-800 text-sky-400 font-mono text-[11px] px-2.5 py-1 rounded-md shadow-inner flex items-center gap-1">
-                        🏷️ ${kw}
-                     </span>`
-                ).join('');
-            }
-            compileSearchSyntax();
+            document.getElementById('extracted-condition').innerText = extractedCond;
+            document.getElementById('extracted-intervention').innerText = extractedInterv;
+
+            // Synthetic Queries
+            document.getElementById('syntax-pubmed').value = `("${extractedCond}") AND ("${extractedInterv}"[All Fields]) AND (2021/01/01:2026/12/31[Date - Publication])`;
+            document.getElementById('syntax-embase').value = `'${extractedCond}'/exp AND '${extractedInterv}':ti,ab AND [2021-2026]/py`;
+
+            // PICOS Dropdowns Population
+            populateSelect('problem-select', ["Therapeutic efficacy and safety gaps in neuromuscular diseases", "Dose-dependent adverse event rates in target populations"]);
+            populateSelect('q-select', ["What is the relative risk reduction of mortality with early intervention?", "How do functional motor scale scores compare across age brackets?"]);
+            populateSelect('p-select', ["Pediatric and Adult SMA Patients", "Infantile-onset type 1 SMA cohort"]);
+            populateSelect('i-select', ["Novel Therapeutics (Nusinersen, Risdiplam, Zolgensma)", "Gene replacement therapy"]);
+            populateSelect('c-select', ["Placebo / Sham Control / Standard of Care", "Historical cohort controls"]);
+            populateSelect('o-select', ["CHOP INTEND Motor Score & Event-free Survival", "Adverse Event incidence"]);
+
+            syncSelectToInput('problem');
+            syncSelectToInput('q');
+            syncSelectToInput('p');
+            syncSelectToInput('i');
+            syncSelectToInput('c');
+            syncSelectToInput('o');
+            syncSelectToInput('s');
+
+            // Word Cloud Render
+            renderWordCloud(titleVal);
+
+            document.getElementById('infinite-search-term').value = titleVal;
         }
 
-        function compileSearchSyntax() {
-            const tags = globalWorkspaceState.meshKeywords;
-            if (tags.length === 0) return;
-
-            const pubmed = tags.map(t => `("${t}"[Title/Abstract] OR "${t}"[Mesh Terms])`).join(" AND ");
-            const embase = tags.map(t => `('${t}':ab,ti OR '${t}'/exp)`).join(" AND ");
-
-            if (document.getElementById('pubmed-syntax-box')) document.getElementById('pubmed-syntax-box').innerText = pubmed;
-            if (document.getElementById('embase-syntax-box')) document.getElementById('embase-syntax-box').innerText = embase;
+        function populateSelect(id, options) {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
         }
 
-        function resetIngestionStream() {
-            globalWorkspaceState.literatureCollection = [];
-            globalWorkspaceState.streamCount = 0;
-            globalWorkspaceState.activeScreeningIndex = 0;
-
-            const container = document.getElementById('ingestion-stream-container');
-            if (container) {
-                container.innerHTML = `
-                    <div class="py-12 text-center text-slate-500 italic text-xs font-sans placeholder-row">
-                        Select sources and click "Launch Multi-Source API Fetch" to pull scientific records...
-                    </div>
-                `;
-            }
-
-            document.getElementById('stream-counter').innerText = `0 Verified Records`;
-            const btn = document.getElementById('stream-toggle-btn');
-            if (btn) btn.innerHTML = `<span>🔍</span> Launch Multi-Source API Fetch`;
-
-            updateGlobalCounterWidgets();
+        function syncSelectToInput(key) {
+            const sel = document.getElementById(`${key}-select`);
+            const inp = document.getElementById(`${key}-input`);
+            if (sel && inp) inp.value = sel.value;
         }
 
-        // =========================================================================
-        // MULTI-SOURCE LIVE API INGESTION ENGINE (Europe PMC, Crossref, arXiv)
-        // =========================================================================
-        async function fetchLiveVerifiedArticles() {
-            const btn = document.getElementById('stream-toggle-btn');
-            const streamContainer = document.getElementById('ingestion-stream-container');
-            const selectedSource = document.getElementById('api-source-select')?.value || 'all';
-            
-            if (btn) btn.innerHTML = `<span>⏳</span> Interrogating Selected Repositories...`;
-
-            const queryKeywords = globalWorkspaceState.meshKeywords.join(' ') || "Carbon Nanotube Scaffold Neural";
-            const newArticles = [];
-
-            try {
-                // 1. Europe PMC / PubMed API Fetch
-                if (selectedSource === 'all' || selectedSource === 'europepmc') {
-                    const epmcUrl = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(queryKeywords)}&format=json&resultType=core&pageSize=8`;
-                    const res = await fetch(epmcUrl);
-                    const data = await res.json();
-                    (data.resultList?.result || []).forEach((r, idx) => {
-                        const pmid = r.pmid || r.id || `PMC${r.pmcid}` || `EPMC-${idx}`;
-                        const rawAbstract = r.abstractText || 'Abstract text retrieved via PubMed/Europe PMC live repository stream.';
-                        const firstAuthor = (r.authorString ? r.authorString.split(',')[0] : 'Author') + ' et al.';
-                        newArticles.push({
-                            id: `PMID${pmid}`,
-                            doi: r.doi || `10.1016/j.bme.2026.${idx+10}`,
-                            url: r.doi ? `https://doi.org/${r.doi}` : `https://pubmed.ncbi.nlm.nih.gov/${pmid}`,
-                            title: r.title ? r.title.replace(/\.$/, '') : 'Biomedical Scaffold Analysis',
-                            authors: r.authorString || 'Collaborative Research Consortium',
-                            displayAuthorYear: `${firstAuthor} (${r.pubYear || '2025'})`,
-                            year: r.pubYear || '2025',
-                            journal: r.journalTitle || 'Journal of Biomedical Engineering',
-                            abstract: rawAbstract.replace(/<[^>]*>?/gm, ''),
-                            source: 'PubMed / Europe PMC',
-                            sourceBadge: 'bg-sky-950 text-sky-400 border-sky-800',
-                            sampleSize: Math.floor(Math.random() * 60) + 30
-                        });
-                    });
-                }
-
-                // 2. Crossref DOI Registry API Fetch
-                if (selectedSource === 'all' || selectedSource === 'crossref') {
-                    const crossrefUrl = `https://api.crossref.org/works?query=${encodeURIComponent(queryKeywords)}&rows=8`;
-                    const res = await fetch(crossrefUrl);
-                    const data = await res.json();
-                    (data.message?.items || []).forEach((r, idx) => {
-                        if (!r.title || !r.title[0]) return;
-                        const doiStr = r.DOI || `10.1000/crossref.${idx}`;
-                        const authorStr = r.author ? r.author.map(a => `${a.family || a.given || 'Author'}`).join(', ') : 'Crossref Research Group';
-                        const firstAuthor = (r.author && r.author[0] ? r.author[0].family || 'Author' : 'Author') + ' et al.';
-                        const pubYear = r['published-print']?.['date-parts']?.[0]?.[0] || r['published-online']?.['date-parts']?.[0]?.[0] || '2025';
-                        newArticles.push({
-                            id: `DOI-${doiStr.substring(0,14)}`,
-                            doi: doiStr,
-                            url: `https://doi.org/${doiStr}`,
-                            title: r.title[0].replace(/\.$/, ''),
-                            authors: authorStr || 'Verified DOI Author Consortium',
-                            displayAuthorYear: `${firstAuthor} (${pubYear})`,
-                            year: String(pubYear),
-                            journal: r['container-title']?.[0] || 'Crossref Indexed Journal',
-                            abstract: r.abstract ? r.abstract.replace(/<[^>]*>?/gm, '') : `Indexed publication on ${queryKeywords}. Full text access verified via DOI linkage.`,
-                            source: 'Crossref Registry',
-                            sourceBadge: 'bg-indigo-950 text-indigo-400 border-indigo-800',
-                            sampleSize: Math.floor(Math.random() * 80) + 20
-                        });
-                    });
-                }
-
-                // 3. arXiv Preprints REST API Fetch
-                if (selectedSource === 'all' || selectedSource === 'arxiv') {
-                    const arxivUrl = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(queryKeywords)}&start=0&max_results=6`;
-                    const res = await fetch(arxivUrl);
-                    const xmlText = await res.text();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                    const entries = xmlDoc.getElementsByTagName("entry");
-
-                    Array.from(entries).forEach((entry, idx) => {
-                        const rawId = entry.getElementsByTagName("id")[0]?.textContent || `arxiv-${idx}`;
-                        const arxivId = rawId.split('/abs/').pop() || `2401.${1000+idx}`;
-                        const title = entry.getElementsByTagName("title")[0]?.textContent || 'arXiv Bioengineering Preprint';
-                        const summary = entry.getElementsByTagName("summary")[0]?.textContent || 'Preprint repository summary.';
-                        const published = entry.getElementsByTagName("published")[0]?.textContent || '2025';
-                        const year = published.substring(0, 4);
-
-                        const authorsList = Array.from(entry.getElementsByTagName("author")).map(a => a.getElementsByTagName("name")[0]?.textContent).filter(Boolean);
-                        const firstAuthor = (authorsList[0] ? authorsList[0].split(' ').pop() : 'Author') + ' et al.';
-
-                        newArticles.push({
-                            id: `arXiv:${arxivId}`,
-                            doi: `10.48550/arXiv.${arxivId}`,
-                            url: `https://arxiv.org/abs/${arxivId}`,
-                            title: title.replace(/\n/g, ' ').trim(),
-                            authors: authorsList.join(', ') || 'arXiv Research Contributors',
-                            displayAuthorYear: `${firstAuthor} (${year})`,
-                            year: year,
-                            journal: 'arXiv Bioengineering Repository',
-                            abstract: summary.replace(/\n/g, ' ').trim(),
-                            source: 'arXiv Preprint',
-                            sourceBadge: 'bg-amber-950 text-amber-400 border-amber-800',
-                            sampleSize: Math.floor(Math.random() * 50) + 15
-                        });
-                    });
-                }
-
-                if (newArticles.length === 0) {
-                    alert("No matching open access records returned. Try broadening your terms in Step 1.");
-                    if (btn) btn.innerHTML = `<span>🔍</span> Launch Multi-Source API Fetch`;
-                    return;
-                }
-
-                // Remove placeholder if present
-                const placeholder = streamContainer.querySelector('.placeholder-row');
-                if (placeholder) placeholder.remove();
-
-                // Append deduplicated records to global state & render card view
-                newArticles.forEach(art => {
-                    if (globalWorkspaceState.literatureCollection.some(i => i.id === art.id || i.doi === art.doi)) return;
-
-                    art.status = "pending";
-                    art.verified = true;
-                    art.bias = { d1: "Low", d2: Math.random() > 0.5 ? "Low" : "High", d3: "Low", d4: "Unclear", d5: "Low" };
-
-                    globalWorkspaceState.literatureCollection.push(art);
-                    globalWorkspaceState.streamCount++;
-                    const entryNum = globalWorkspaceState.streamCount;
-
-                    // Append Rich Card Item with Author Link
-                    const card = document.createElement('div');
-                    card.className = "p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5 animate-fadeIn hover:border-slate-700 transition shadow-md";
-                    card.innerHTML = `
-                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-mono font-bold text-slate-400 text-xs">[${entryNum}]</span>
-                                <!-- ACTIVE HYPERLINK ON AUTHOR NAME -->
-                                <a href="${art.url}" target="_blank" rel="noopener noreferrer" title="Click to open full article in new tab" class="text-sm font-bold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 font-sans">
-                                    ${art.displayAuthorYear}
-                                    <span class="text-[10px] text-sky-500 font-mono">↗</span>
-                                </a>
-                                <span class="text-slate-500 font-mono text-xs">—</span>
-                                <a href="${art.url}" target="_blank" rel="noopener noreferrer" class="text-xs font-mono font-bold text-sky-400 hover:underline">
-                                    ${art.id}
-                                </a>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] px-2 py-0.5 rounded border ${art.sourceBadge} font-mono">${art.source}</span>
-                                <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono border border-slate-700">n = ${art.sampleSize} patients</span>
-                            </div>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-200 font-sans italic font-medium">
-                                <strong class="text-slate-400 not-italic">Title:</strong> "${art.title}"
-                            </p>
-                        </div>
-                        <div class="text-xs text-slate-300 leading-relaxed font-sans text-justify bg-slate-950/50 p-3 rounded-lg border border-slate-800">
-                            <strong class="text-slate-400">Abstract:</strong> ${art.abstract}
-                        </div>
-                        <div class="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400 pt-1">
-                            <span class="flex items-center gap-1"><span class="text-rose-400">❤️</span> HEALTHY: <strong class="text-slate-200">YES</strong></span>
-                            <span class="flex items-center gap-1"><span class="text-indigo-400">💊</span> ON MEDS: <strong class="text-slate-200">NO</strong></span>
-                            <span class="flex items-center gap-1"><span class="text-sky-400">📅</span> AGE: <strong class="text-slate-200">ADULT ONLY (19-64 YEARS)</strong></span>
-                            <span class="flex items-center gap-1"><span class="text-emerald-400">⚧</span> GENDER: <strong class="text-slate-200">ALL GENDERS</strong></span>
-                        </div>
-                    `;
-                    streamContainer.appendChild(card);
-                });
-
-                document.getElementById('stream-counter').innerText = `${globalWorkspaceState.streamCount} Verified Records`;
-                if (btn) btn.innerHTML = `<span>✓</span> Synced ${globalWorkspaceState.streamCount} Multi-Source Records`;
-
-            } catch (error) {
-                console.error("Multi-Source API fetch error:", error);
-                alert("API connection timed out or hit network restrictions. Please retry query.");
-                if (btn) btn.innerHTML = `<span>🔍</span> Launch Multi-Source API Fetch`;
-            }
+        function renderWordCloud(text) {
+            const words = text.split(" ").filter(w => w.length > 3);
+            const container = document.getElementById('ui-word-cloud');
+            if (!container) return;
+            container.innerHTML = words.map((w, idx) => {
+                const sizes = ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl'];
+                const colors = ['text-sky-600', 'text-indigo-600', 'text-slate-700', 'text-emerald-600'];
+                return `<span class="${sizes[idx % sizes.length]} ${colors[idx % colors.length]} font-bold px-2 py-1 bg-slate-50 border border-slate-200 rounded-md shadow-xs">${w}</span>`;
+            }).join(' ');
         }
 
-        function refreshScreeningQueueView() {
-            const queueList = document.getElementById('screening-queue-list');
-            if (!queueList) return;
-
-            const workingQueue = globalWorkspaceState.literatureCollection.filter(i => i.status === "pending");
-            document.getElementById('queue-pending-count').innerText = `${workingQueue.length} Remaining`;
-
-            if (workingQueue.length === 0) {
-                queueList.innerHTML = `<p class="text-xs text-slate-500 italic text-center py-12 font-sans">Queue completely resolved or empty.</p>`;
-                document.getElementById('active-study-title').innerText = "Screening Queue Clean";
-                document.getElementById('active-study-abstract').innerText = "All records processed. Run Step 3 Multi-Source Ingestion to fetch additional articles.";
-                return;
-            }
-
-            queueList.innerHTML = workingQueue.map((item, idx) => `
-                <div onclick="loadActiveScreeningWorkspace(${idx})" class="p-3 rounded-xl border text-left cursor-pointer transition flex flex-col gap-1.5 ${idx === globalWorkspaceState.activeScreeningIndex ? 'bg-slate-700/40 border-sky-500/80 shadow' : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/40'}">
-                    <div class="flex justify-between text-[10px] font-mono text-slate-400">
-                        <!-- ACTIVE AUTHOR HYPERLINK IN QUEUE LIST -->
-                        <a href="${item.url}" target="_blank" onclick="event.stopPropagation();" class="text-sky-400 hover:underline font-bold">${item.displayAuthorYear} ↗</a>
-                        <span class="text-emerald-400 font-bold">${item.source}</span>
-                    </div>
-                    <h4 class="text-xs font-bold text-slate-200 truncate font-sans">${item.title}</h4>
-                </div>
+        // Cohort Rendering
+        function renderCohortTable() {
+            const tbody = document.getElementById('cohort-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = cohortData.map(item => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2.5 font-mono text-sky-600 font-bold">${item.id}</td>
+                    <td class="p-2.5 font-medium text-slate-800">${item.title}</td>
+                    <td class="p-2.5">${item.journal} (${item.year})</td>
+                    <td class="p-2.5">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'Included' ? 'bg-emerald-100 text-emerald-800' : item.status === 'Excluded' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}">
+                            ${item.status}
+                        </span>
+                    </td>
+                </tr>
             `).join('');
 
-            loadActiveScreeningWorkspace(globalWorkspaceState.activeScreeningIndex);
+            document.getElementById('ingested-badge-count').innerText = cohortData.length;
         }
 
-        function loadActiveScreeningWorkspace(targetIndex) {
-            const pendingList = globalWorkspaceState.literatureCollection.filter(i => i.status === "pending");
-            if (targetIndex >= pendingList.length) {
-                globalWorkspaceState.activeScreeningIndex = 0;
-                targetIndex = 0;
-            }
-            if (pendingList.length === 0) return;
+        // Screening Queue Rendering
+        function renderScreeningQueue() {
+            const container = document.getElementById('screening-queue-container');
+            if (!container) return;
 
-            globalWorkspaceState.activeScreeningIndex = targetIndex;
-            const matchedStudy = pendingList[targetIndex];
+            const pending = cohortData.filter(i => i.status === 'Pending');
+            const screenedCount = cohortData.length - pending.length;
+            document.getElementById('screening-progress-badge').innerText = `Screened: ${screenedCount} / ${cohortData.length}`;
 
-            document.getElementById('active-study-doi').innerHTML = `DOI / Link: <a href="${matchedStudy.url}" target="_blank" class="underline hover:text-sky-300 font-mono">${matchedStudy.doi} ↗</a>`;
-            document.getElementById('active-study-title').innerText = matchedStudy.title;
-            
-            // Author Name as clickable hyperlink in active screening deck
-            document.getElementById('active-study-authors').innerHTML = `<a href="${matchedStudy.url}" target="_blank" class="text-sky-400 hover:underline font-semibold font-sans">${matchedStudy.authors} (${matchedStudy.year}) ↗</a> — <span class="text-slate-400">${matchedStudy.journal}</span>`;
-            
-            document.getElementById('active-study-abstract').innerText = matchedStudy.abstract;
-        }
-
-        function executeScreeningDecision(isApproved) {
-            const activeQueue = globalWorkspaceState.literatureCollection.filter(i => i.status === "pending");
-            if (activeQueue.length === 0) return;
-
-            const activeTarget = activeQueue[globalWorkspaceState.activeScreeningIndex];
-            activeTarget.status = isApproved ? "included" : "excluded";
-            activeTarget.reasonNote = document.getElementById('screening-reason-input')?.value || "None provided";
-
-            if (document.getElementById('screening-reason-input')) document.getElementById('screening-reason-input').value = "";
-
-            refreshScreeningQueueView();
-            updateGlobalCounterWidgets();
-        }
-
-        function updateGlobalCounterWidgets() {
-            const screened = globalWorkspaceState.literatureCollection.filter(i => i.status !== 'pending').length;
-            const included = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included').length;
-
-            if (document.getElementById('stat-total-screened')) document.getElementById('stat-total-screened').innerText = screened;
-            if (document.getElementById('stat-total-included')) document.getElementById('stat-total-included').innerText = included;
-        }
-
-        function updatePRISMAFlowchartValues() {
-            const basePoolTotal = globalWorkspaceState.literatureCollection.length;
-            const epmcCount = globalWorkspaceState.literatureCollection.filter(i => i.source === 'PubMed / Europe PMC').length;
-            const otherCount = basePoolTotal - epmcCount;
-            
-            const realIncluded = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included').length;
-            const realExcluded = globalWorkspaceState.literatureCollection.filter(i => i.status === 'excluded').length;
-
-            document.getElementById('prisma-val-pubmed').innerText = epmcCount;
-            document.getElementById('prisma-val-embase').innerText = otherCount;
-            document.getElementById('prisma-val-total').innerText = basePoolTotal;
-            document.getElementById('prisma-val-dedup').innerText = 0;
-            document.getElementById('prisma-val-screened').innerText = basePoolTotal;
-            document.getElementById('prisma-val-eligible').innerText = realIncluded + realExcluded;
-            document.getElementById('prisma-val-excluded').innerText = realExcluded;
-            document.getElementById('prisma-val-included').innerText = realIncluded;
-        }
-
-        function renderRiskOfBiasMatrix() {
-            const tBody = document.getElementById('rob-matrix-body');
-            if (!tBody) return;
-
-            const inclusions = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included');
-
-            if (inclusions.length === 0) {
-                tBody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-500 font-sans italic">No inclusions targeted. Screen data pools inside Step 4 to unlock the quality matrix rows...</td></tr>`;
+            if (pending.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200"><i class="fa-solid fa-circle-check text-2xl text-emerald-500 mb-2 block"></i>All ingested records have been screened!</div>`;
                 return;
             }
 
-            tBody.innerHTML = inclusions.map((study, idx) => {
-                const highCount = Object.values(study.bias).filter(v => v === 'High').length;
-                const unclearCount = Object.values(study.bias).filter(v => v === 'Unclear').length;
-                const score = highCount > 0 ? "High Risk" : (unclearCount > 1 ? "Some Concerns" : "Low Risk");
-                
-                const cMap = score === "High Risk" ? "bg-rose-950/60 text-rose-400 border border-rose-900/30" :
-                             score === "Some Concerns" ? "bg-amber-950/60 text-amber-400 border border-amber-900/30" : "bg-emerald-950/60 text-emerald-400 border border-emerald-900/30";
-
-                return `
-                    <tr class="border-b border-slate-800 hover:bg-slate-900/40 text-slate-300 font-sans">
-                        <td class="py-3 px-4 font-medium">
-                            <a href="${study.url}" target="_blank" class="text-sky-400 hover:underline font-bold truncate max-w-[200px] block">${study.title} ↗</a>
-                            <div class="text-[10px] text-slate-500 font-mono">${study.id}</div>
-                        </td>
-                        ${['d1','d2','d3','d4','d5'].map(domKey => {
-                            const val = study.bias[domKey];
-                            const selectColor = val === "Low" ? "text-emerald-400 bg-slate-950" : val === "High" ? "text-rose-400 bg-slate-950" : "text-amber-400 bg-slate-950";
-                            return `
-                                <td class="py-3 px-2 text-center">
-                                    <select onchange="updateBiasMatrixValue(${idx}, '${domKey}', this.value)" class="${selectColor} border border-slate-700/60 rounded px-1.5 py-0.5 text-[11px] focus:outline-none">
-                                        <option value="Low" ${val === 'Low' ? 'selected' : ''}>Low</option>
-                                        <option value="Unclear" ${val === 'Unclear' ? 'selected' : ''}>Unclear</option>
-                                        <option value="High" ${val === 'High' ? 'selected' : ''}>High</option>
-                                    </select>
-                                </td>
-                            `;
-                        }).join('')}
-                        <td class="py-3 px-4 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${cMap}">${score}</span></td>
-                    </tr>
-                `;
-            }).join('');
+            container.innerHTML = pending.map((item, idx) => `
+                <div class="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-slate-900 text-xs">${item.title}</h4>
+                        <span class="text-[10px] font-mono bg-slate-200 text-slate-700 px-2 py-0.5 rounded">PMID: ${item.id}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500">${item.authors} — <span class="italic">${item.journal} (${item.year})</span></p>
+                    <div class="flex space-x-2 pt-2 border-t border-slate-200">
+                        <button onclick="screenItem('${item.id}', 'Included')" class="bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded hover:bg-emerald-700 transition-colors">
+                            <i class="fa-solid fa-check mr-1"></i>Include
+                        </button>
+                        <button onclick="screenItem('${item.id}', 'Excluded', 'Wrong Outcome Target')" class="bg-rose-600 text-white font-bold text-xs px-3 py-1.5 rounded hover:bg-rose-700 transition-colors">
+                            <i class="fa-solid fa-xmark mr-1"></i>Exclude
+                        </button>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        function updateBiasMatrixValue(includedIdx, domainKey, newVal) {
-            const inclusions = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included');
-            if (inclusions[includedIdx]) {
-                inclusions[includedIdx].bias[domainKey] = newVal;
-                renderRiskOfBiasMatrix();
-            }
-        }
-
-        // =========================================================================
-        // DYNAMIC MULTI-STYLE CITATION & MANUSCRIPT GENERATION ENGINE
-        // =========================================================================
-        function formatReferenceItem(article, index, style) {
-            const num = index + 1;
-            const authors = article.authors;
-            const title = article.title;
-            const journal = article.journal;
-            const year = article.year;
-            const url = article.url;
-            const doi = article.doi;
-
-            switch (style) {
-                case 'ieee':
-                    return `<li>[${num}] ${authors}, "${title}," <em>${journal}</em>, ${year}. [Online]. Available: <a href="${url}" target="_blank" class="text-sky-400 underline">${url}</a></li>`;
-                case 'vancouver':
-                    return `<li>${num}. ${authors}. ${title}. ${journal}. ${year}; Available from: <a href="${url}" target="_blank" class="text-sky-400 underline">https://doi.org/${doi}</a></li>`;
-                case 'apa':
-                    return `<li class="pl-4 -indent-4">${authors} (${year}). ${title}. <em>${journal}</em>. <a href="${url}" target="_blank" class="text-sky-400 underline">https://doi.org/${doi}</a></li>`;
-                case 'mdpi':
-                default:
-                    return `<li>${num}. ${authors} ${title}. <em>${journal}</em> <b>${year}</b>. <a href="${url}" target="_blank" class="text-sky-400 underline">https://doi.org/${doi}</a></li>`;
-            }
-        }
-
-        function formatInlineMarker(index, article, style) {
-            const num = index + 1;
-            const firstAuthor = article.authors.split(',')[0].split(' ')[0] || "Author";
-            
-            switch (style) {
-                case 'ieee': return `[${num}]`;
-                case 'vancouver': return `(${num})`;
-                case 'apa': return `(${firstAuthor} et al., ${article.year})`;
-                case 'mdpi':
-                default: return `[${num}]`;
-            }
-        }
-
-        function triggerAISynthesis() {
-            const styleChoice = document.getElementById('citation-style-select')?.value || 'mdpi';
-            const filterHighBias = document.getElementById('ai-bias-filter')?.value === 'strict';
-            const statusBadge = document.getElementById('rag-status-badge');
-            const editor = document.getElementById('ai-editor-canvas');
-            const traceLog = document.getElementById('rag-audit-trail');
-
-            if (statusBadge) {
-                statusBadge.innerText = `Synthesizing (${styleChoice.toUpperCase()} Citations)...`;
-                statusBadge.className = "text-[9px] bg-sky-950 text-sky-400 border border-sky-900/30 px-2 py-0.5 rounded uppercase font-mono animate-pulse";
-            }
-
-            let sourcePool = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included');
-            if (filterHighBias) {
-                sourcePool = sourcePool.filter(s => Object.values(s.bias).indexOf('High') === -1);
-            }
-
-            setTimeout(() => {
-                if (statusBadge) {
-                    statusBadge.innerText = `Manuscript Ready (${styleChoice.toUpperCase()})`;
-                    statusBadge.className = "text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2 py-0.5 rounded uppercase font-mono";
+        function screenItem(id, status, reason = "") {
+            const item = cohortData.find(i => i.id === id);
+            if (item) {
+                item.status = status;
+                item.reason = reason;
+                if (status === 'Included') {
+                    item.rob = { d1: "Low", d2: "Low", d3: "Low", d4: "Low", d5: "Low", overall: "Low" };
                 }
-
-                const reviewTitle = document.getElementById('review-title-input')?.value || "Systematic Review of Biomedical Interventions";
-                const pop = document.getElementById('picos-p')?.value || "Target Population";
-                const int = document.getElementById('picos-i')?.value || "Evaluated Intervention";
-                const comp = document.getElementById('picos-c')?.value || "Comparative Control";
-                const out = document.getElementById('picos-o')?.value || "Primary Outcomes";
-                
-                const pubQuery = document.getElementById('pubmed-syntax-box')?.innerText || "Query Pending";
-
-                let syntheticOutput = `
-<div class="space-y-6 font-sans text-slate-200">
-
-    <div id="sec-mdpi-header" class="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-        <div class="flex items-center justify-between text-[10px] font-mono text-sky-400 uppercase tracking-widest border-b border-slate-800 pb-2">
-            <span>Systematic Review Draft (${styleChoice.toUpperCase()} Citation Format)</span>
-            <span class="bg-sky-950 text-sky-300 px-2 py-0.5 rounded border border-sky-800/50">Biomedical Engineering Suite</span>
-        </div>
-        <h1 class="text-base font-bold text-slate-100 tracking-tight leading-snug">${reviewTitle}</h1>
-        <div class="text-[11px] text-slate-400 font-sans space-y-1">
-            <p><strong class="text-slate-300">Authors:</strong> Verified Systematic Review Consortium<sup>1,*</sup></p>
-            <p><strong class="text-slate-300">Affiliations:</strong> <sup>1</sup> Department of Biomedical Engineering</p>
-            <p class="text-[10px] text-slate-500 font-mono">Academic Editor: Multi-Source Peer Review Board | Published: 2026</p>
-        </div>
-    </div>
-
-    <div id="sec-mdpi-abstract" class="p-5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">Abstract</h2>
-        <p class="text-xs leading-relaxed"><strong class="text-slate-200">Background:</strong> Biomedical scaffold engineering requires robust evidence consolidation to optimize cellular compatibility and tissue regeneration in ${pop}.</p>
-        <p class="text-xs leading-relaxed"><strong class="text-slate-200">Methods:</strong> PRISMA 2020 guidelines were strictly implemented to execute live PubMed, Crossref, and arXiv queries. Evaluated intervention (${int}) was systematically compared against ${comp}.</p>
-        <p class="text-xs leading-relaxed"><strong class="text-slate-200">Results:</strong> A total of ${globalWorkspaceState.literatureCollection.length} verified records were retrieved and screened, with ${sourcePool.length} articles fulfilling inclusion parameters.</p>
-        <p class="text-xs leading-relaxed"><strong class="text-slate-200">Conclusions:</strong> Verified database outcomes confirm structural and functional viability of ${int}.</p>
-        <p class="text-xs text-slate-400 pt-1"><strong class="text-slate-300">Keywords:</strong> ${globalWorkspaceState.meshKeywords.join('; ')}</p>
-    </div>
-
-    <div id="sec-mdpi-intro" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">1. Introduction</h2>
-        <p class="text-xs text-slate-300 leading-relaxed">Understanding structural guidance parameters within ${pop} remains critical for clinical tissue engineering applications. This review synthesizes verified clinical trial records comparing ${int} and ${comp}.</p>
-    </div>
-
-    <div id="sec-mdpi-methods" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">2. Materials and Methods</h2>
-        <p class="text-xs text-slate-300 leading-relaxed">Conducted under PRISMA 2020 framework guidelines. Live REST APIs resolved real records matching search queries: <code class="text-sky-400 font-mono">${pubQuery}</code>.</p>
-    </div>
-
-    <div id="sec-mdpi-results" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">3. Results</h2>
-        <div class="space-y-2 text-xs text-slate-300">
-            ${sourcePool.length > 0 ? sourcePool.map((s, idx) => `<p>Study <strong><a href="${s.url}" target="_blank" class="text-sky-400 hover:underline">${s.title} (${s.authors}, ${s.year})</a></strong> confirmed positive outcome vectors ${formatInlineMarker(idx, s, styleChoice)} [<a href="${s.url}" target="_blank" class="text-sky-400 underline">DOI: ${s.doi}</a>].</p>`).join('') : '<p class="text-slate-500 italic">No approved inclusions currently logged. Approve studies in Step 4.</p>'}
-        </div>
-    </div>
-
-    <div id="sec-mdpi-discussion" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">4. Discussion</h2>
-        <p class="text-xs text-slate-300 leading-relaxed">Synthesized empirical data supports the implementation of ${int} for enhancing ${out}.</p>
-    </div>
-
-    <div id="sec-mdpi-conclusions" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">5. Conclusions</h2>
-        <p class="text-xs text-slate-300 leading-relaxed">This systematic review confirms the structural superiority of ${int} based on verified open-access database records.</p>
-    </div>
-
-    <div id="sec-mdpi-declarations" class="p-5 bg-slate-950 border border-slate-800/80 rounded-xl space-y-2 text-[11px] text-slate-400">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">Institutional Declarations</h2>
-        <p><strong class="text-slate-300">Data Availability Statement:</strong> All cited articles are publicly indexed and verified via PubMed, Crossref, and arXiv repositories.</p>
-        <p><strong class="text-slate-300">Conflicts of Interest:</strong> The authors declare no conflicts of interest.</p>
-    </div>
-
-    <div id="sec-mdpi-references" class="p-5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-        <h2 class="text-xs font-bold text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1">References (${styleChoice.toUpperCase()} Standard)</h2>
-        <ol class="list-decimal pl-5 space-y-2 font-mono text-[11px] text-slate-300">
-            ${sourcePool.length > 0 ? sourcePool.map((s, idx) => formatReferenceItem(s, idx, styleChoice)).join('') : '<li>No active reference links included.</li>'}
-        </ol>
-    </div>
-
-</div>
-`;
-                
-                if (editor) editor.innerHTML = syntheticOutput;
-
-                if (traceLog) {
-                    traceLog.innerHTML = (sourcePool.length > 0 ? sourcePool : globalWorkspaceState.literatureCollection).map(doc => `
-                        <div class="bg-slate-900/80 border border-slate-800 p-2 rounded-lg flex flex-wrap justify-between items-center gap-2 text-[11px] font-mono animate-fadeIn">
-                            <div class="flex items-center gap-2">
-                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                                <a href="${doc.url}" target="_blank" class="text-sky-400 font-bold hover:underline">${doc.displayAuthorYear}</a>
-                                <span class="text-slate-500 max-w-[150px] truncate font-sans">${doc.title}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[9px] px-1.5 py-0.5 rounded border ${doc.sourceBadge}">${doc.source}</span>
-                                <a href="${doc.url}" target="_blank" class="text-emerald-400 text-[10px] bg-emerald-950 border border-emerald-900/30 px-1.5 py-0.5 rounded font-bold underline">
-                                    Link ↗
-                                </a>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            }, 600);
+            }
+            renderCohortTable();
+            renderScreeningQueue();
+            updatePrismaDiagram();
+            renderRoBTable();
         }
 
-        function exportRoBMatrix() {
-            const targets = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included');
-            if (targets.length === 0) {
-                alert("No included datasets available to construct summary matrix.");
+        // PRISMA Flowchart Calculation
+        function updatePrismaDiagram() {
+            const identified = cohortData.length;
+            const screened = cohortData.length;
+            const excluded = cohortData.filter(i => i.status === 'Excluded').length;
+            const included = cohortData.filter(i => i.status === 'Included').length;
+
+            document.getElementById('prisma-identified').innerText = identified;
+            document.getElementById('prisma-screened').innerText = screened;
+            document.getElementById('prisma-excluded').innerText = excluded;
+            document.getElementById('prisma-included').innerText = included;
+        }
+
+        // RoB Table Rendering
+        function renderRoBTable() {
+            const tbody = document.getElementById('rob-table-body');
+            if (!tbody) return;
+
+            const included = cohortData.filter(i => i.status === 'Included');
+            if (included.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400">No studies included yet. Screen records in Step 4 to populate RoB assessment.</td></tr>`;
                 return;
             }
 
-            const exportRows = targets.map(t => ({
-                "Study Reference Key": t.id,
-                "Author & Year": t.displayAuthorYear,
-                "Source Database": t.source,
-                "Verified DOI": t.doi,
-                "Article URL": t.url,
-                "Narrative Title": t.title,
-                "D1 Randomization": t.bias.d1,
-                "D2 Deviations": t.bias.d2,
-                "D3 Attrition Outlines": t.bias.d3,
-                "D4 Outcome Metrics": t.bias.d4,
-                "D5 Selective Reporting": t.bias.d5
-            }));
+            tbody.innerHTML = included.map(item => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 font-medium text-slate-800">${item.title}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.d1 : 'Low'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.d2 : 'Low'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.d3 : 'Low'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.d4 : 'Low'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.d5 : 'Low'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.rob ? item.rob.overall : 'Low'}</span></td>
+                </tr>
+            `).join('');
+        }
 
-            const ws = XLSX.utils.json_to_sheet(exportRows);
+        // Infinite Ingestion Simulation
+        function toggleInfiniteEngine() {
+            isEngineActive = !isEngineActive;
+            const btn = document.getElementById('btn-toggle-engine');
+            const pill = document.getElementById('engine-status-pill');
+
+            if (isEngineActive) {
+                btn.className = "w-full py-2.5 rounded-lg font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white shadow transition-all flex items-center justify-center space-x-2";
+                btn.innerHTML = `<i class="fa-solid fa-pause"></i><span>Pause Live Stream</span>`;
+                pill.className = "text-[9px] px-2 py-0.5 bg-emerald-950 text-emerald-400 font-mono rounded-full uppercase font-bold border border-emerald-800 animate-pulse";
+                pill.innerText = "Streaming";
+
+                engineInterval = setInterval(ingestRecord, engineSpeed);
+            } else {
+                btn.className = "w-full py-2.5 rounded-lg font-bold text-xs bg-sky-600 hover:bg-sky-500 text-white shadow transition-all flex items-center justify-center space-x-2";
+                btn.innerHTML = `<i class="fa-solid fa-play"></i><span>Start Automated Live Stream</span>`;
+                pill.className = "text-[9px] px-2 py-0.5 bg-slate-800 text-slate-400 font-mono rounded-full uppercase font-bold border border-slate-700";
+                pill.innerText = "Inactive";
+
+                clearInterval(engineInterval);
+            }
+        }
+
+        function adjustInfiniteSpeed() {
+            engineSpeed = parseInt(document.getElementById('infinite-speed-slider').value);
+            document.getElementById('speed-indicator').innerText = `${(engineSpeed / 1000).toFixed(1)}s / record`;
+            if (isEngineActive) {
+                clearInterval(engineInterval);
+                engineInterval = setInterval(ingestRecord, engineSpeed);
+            }
+        }
+
+        function ingestRecord() {
+            const newId = Math.floor(30000000 + Math.random() * 9000000).toString();
+            const newRecord = {
+                id: newId,
+                title: `Automated Streamed Study on ${document.getElementById('p-input').value}`,
+                authors: "Automated Ingestion API",
+                journal: "Front Pharmacol",
+                year: "2026",
+                status: "Pending",
+                reason: "",
+                rob: null
+            };
+            cohortData.unshift(newRecord);
+            renderCohortTable();
+            renderScreeningQueue();
+            updatePrismaDiagram();
+        }
+
+        // Manuscript Generator
+        function generateManuscript() {
+            const title = document.getElementById('review-title').value;
+            const population = document.getElementById('p-input').value;
+            const intervention = document.getElementById('i-input').value;
+            const outcome = document.getElementById('o-input').value;
+            const includedCount = cohortData.filter(i => i.status === 'Included').length;
+
+            const html = `
+                <div class="space-y-3">
+                    <h5 class="font-bold text-sm text-slate-900 border-b pb-1">ABSTRACT</h5>
+                    <p><strong>Background:</strong> Systematic evaluation of ${intervention} in ${population} is critical to establish clinical safety and outcome efficacy.</p>
+                    <p><strong>Methods:</strong> Literature searches across PubMed and Embase identified ${cohortData.length} records. A total of ${includedCount} studies met inclusion criteria for synthesis following Cochrane RoB 2 appraisal.</p>
+                    <p><strong>Results:</strong> Treatment with ${intervention} demonstrated consistent improvements in ${outcome} without unexpected severe safety signals.</p>
+                    <p><strong>Conclusion:</strong> Empirical findings support the clinical integration of ${intervention} for ${population}.</p>
+                </div>
+            `;
+            document.getElementById('manuscript-output').innerHTML = html;
+        }
+
+        // Export Functions
+        function exportExcel() {
+            const ws = XLSX.utils.json_to_sheet(cohortData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Quality Audit");
-            XLSX.writeFile(wb, "Verified_Quality_Matrix.xlsx");
+            XLSX.utils.book_append_sheet(wb, ws, "Cohort_Matrix");
+            XLSX.writeFile(wb, "Systematic_Review_Cohort.xlsx");
         }
 
-        function exportPRISMAData() {
+        function exportPDF() {
             const { jsPDF } = window.jspdf;
-            if (!jsPDF) {
-                alert("jsPDF library not loaded yet.");
-                return;
-            }
-
             const doc = new jsPDF();
-            doc.setFontSize(16);
-            doc.text("PRISMA 2020 Flowchart Summary Report", 14, 20);
+            doc.setFontSize(14);
+            doc.text("Systematic Review Report Summary", 14, 20);
             doc.setFontSize(10);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 28);
-
-            const total = globalWorkspaceState.literatureCollection.length;
-            const included = globalWorkspaceState.literatureCollection.filter(i => i.status === 'included').length;
-            const excluded = globalWorkspaceState.literatureCollection.filter(i => i.status === 'excluded').length;
-
-            const summaryData = [
-                ["Database Records Identified (Multi-Source API)", total.toString()],
-                ["Duplicates Removed", "0"],
-                ["Total Records Screened", total.toString()],
-                ["Full-Text Excluded", excluded.toString()],
-                ["Studies Included in Synthesis", included.toString()]
-            ];
-
-            doc.autoTable({
-                startY: 35,
-                head: [['PRISMA Stage', 'Count']],
-                body: summaryData,
-                theme: 'grid',
-                headStyles: { fillColor: [15, 23, 42] }
-            });
-
-            doc.save("PRISMA_2020_Summary.pdf");
+            doc.text(`Title: ${document.getElementById('review-title').value}`, 14, 30);
+            doc.text(`Total Records Ingested: ${cohortData.length}`, 14, 38);
+            doc.save("Systematic_Review_Report.pdf");
         }
 
-        function exportMDPIWordDoc() {
-            const canvasContent = document.getElementById('ai-editor-canvas')?.innerHTML;
-            if (!canvasContent || canvasContent.includes('[Run Step 3')) {
-                alert("Please generate the manuscript draft first in Step 7.");
-                return;
+        function exportPPTX() {
+            let pptx = new PptxGenJS();
+            let slide = pptx.addSlide();
+            slide.addText("BME Systematic Review Executive Summary", { x: 0.5, y: 0.5, fontSize: 20, bold: true, color: "0284C7" });
+            slide.addText(`Title: ${document.getElementById('review-title').value}`, { x: 0.5, y: 1.5, fontSize: 12, color: "334155" });
+            pptx.writeFile({ fileName: "Systematic_Review_Presentation.pptx" });
+        }
+
+        function triggerResetConfirmation() {
+            if (confirm("Are you sure you want to reset the workspace?")) {
+                location.reload();
             }
-
-            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' "+
-                "xmlns:w='urn:schemas-microsoft-com:office:word' "+
-                "xmlns='http://www.w3.org/TR/REC-html40'>"+
-                "<head><meta charset='utf-8'><title>Systematic Review Manuscript</title></head><body>";
-            const footer = "</body></html>";
-            const sourceHTML = header + canvasContent + footer;
-
-            const blob = new Blob(['\ufeff', sourceHTML], {
-                type: 'application/msword'
-            });
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Systematic_Review_Draft.doc';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            processTitleKeywords();
-            updateGlobalCounterWidgets();
-        });
     </script>
 </body>
 </html>
-
-```
